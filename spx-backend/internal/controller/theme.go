@@ -2,7 +2,7 @@ package controller
 
 import (
 	"fmt"
-
+	"strings"
 	"github.com/goplus/builder/spx-backend/internal/svggen"
 )
 
@@ -192,4 +192,193 @@ func GetAllThemesInfo() []ThemeInfo {
 	}
 
 	return result
+}
+
+
+
+
+// PromptAnalysis represents the analysis result of a user prompt
+type PromptAnalysis struct {
+	Type       string   `json:"type"`       // "animal", "object", "scene", "character", etc.
+	Emotion    string   `json:"emotion"`    // "cute", "serious", "scary", "neutral", etc.
+	Complexity string   `json:"complexity"` // "simple", "medium", "complex"
+	Keywords   []string `json:"keywords"`   // Extracted keywords
+}
+
+// QualityPrompts defines quality enhancement prompts for different complexity levels
+var QualityPrompts = map[string]string{
+	"simple":  "high quality vector art, clean lines, vibrant colors",
+	"medium":  "high quality vector art, detailed illustration, professional design, rich colors",
+	"complex": "high quality vector art, intricate details, professional illustration, sophisticated design, rich color palette",
+}
+
+// StylePrompts defines style enhancement prompts for different types
+var StylePrompts = map[string]string{
+	"animal":    "cute and friendly style, appealing character design",
+	"object":    "modern and functional style, clear visual representation",
+	"scene":     "atmospheric and immersive style, detailed environment",
+	"character": "expressive and memorable style, distinctive personality",
+	"nature":    "organic and natural style, harmonious composition",
+	"building":  "architectural and structured style, clear geometric forms",
+	"food":      "appetizing and colorful style, fresh appearance",
+	"vehicle":   "sleek and dynamic style, modern design",
+	"abstract":  "artistic and creative style, imaginative composition",
+	"default":   "appealing and well-designed style, visual clarity",
+}
+
+// TechnicalPrompts defines technical requirements for SVG generation
+var TechnicalPrompts = map[ThemeType]string{
+	ThemeCartoon:   "SVG format, scalable graphics, cartoon-optimized, bright color palette",
+	ThemeRealistic: "SVG format, scalable graphics, realistic rendering, detailed textures",
+	ThemeMinimal:   "SVG format, scalable graphics, minimal design, geometric shapes",
+	ThemeFantasy:   "SVG format, scalable graphics, magical effects, fantasy elements",
+	ThemeRetro:     "SVG format, scalable graphics, vintage aesthetics, retro styling",
+	ThemeScifi:     "SVG format, scalable graphics, futuristic design, tech elements",
+	ThemeNature:    "SVG format, scalable graphics, natural textures, organic forms",
+	ThemeBusiness:  "SVG format, scalable graphics, professional design, corporate styling",
+	ThemeNone:      "SVG format, scalable graphics, web optimized",
+}
+
+// AnalyzePromptType analyzes the user prompt to determine its type, emotion, and complexity
+func AnalyzePromptType(prompt string) PromptAnalysis {
+	prompt = strings.ToLower(prompt)
+	
+	// Initialize analysis
+	analysis := PromptAnalysis{
+		Type:       "default",
+		Emotion:    "neutral",
+		Complexity: "simple",
+		Keywords:   []string{},
+	}
+	
+	// Extract keywords (split by common delimiters)
+	words := strings.FieldsFunc(prompt, func(c rune) bool {
+		return c == ' ' || c == '，' || c == '、' || c == '。' || c == '！' || c == '？'
+	})
+	
+	for _, word := range words {
+		word = strings.TrimSpace(word)
+		if len(word) > 1 {
+			analysis.Keywords = append(analysis.Keywords, word)
+		}
+	}
+	
+	// Detect type based on keywords
+	if containsAny(prompt, []string{"猫", "狗", "鸟", "鱼", "动物", "cat", "dog", "bird", "animal"}) {
+		analysis.Type = "animal"
+	} else if containsAny(prompt, []string{"人", "男", "女", "孩子", "角色", "人物", "character", "person"}) {
+		analysis.Type = "character"
+	} else if containsAny(prompt, []string{"风景", "景色", "自然", "山", "海", "森林", "scene", "landscape", "nature"}) {
+		analysis.Type = "scene"
+	} else if containsAny(prompt, []string{"房子", "建筑", "城市", "楼", "building", "house", "city"}) {
+		analysis.Type = "building"
+	} else if containsAny(prompt, []string{"食物", "水果", "蔬菜", "食品", "food", "fruit", "vegetable"}) {
+		analysis.Type = "food"
+	} else if containsAny(prompt, []string{"车", "飞机", "船", "交通", "vehicle", "car", "plane", "transport"}) {
+		analysis.Type = "vehicle"
+	} else if containsAny(prompt, []string{"花", "树", "植物", "grass", "flower", "tree", "plant"}) {
+		analysis.Type = "nature"
+	} else if containsAny(prompt, []string{"抽象", "艺术", "创意", "abstract", "art", "creative"}) {
+		analysis.Type = "abstract"
+	}
+	
+	// Detect emotion
+	if containsAny(prompt, []string{"可爱", "萌", "甜美", "cute", "sweet", "adorable"}) {
+		analysis.Emotion = "cute"
+	} else if containsAny(prompt, []string{"严肃", "正式", "专业", "serious", "formal", "professional"}) {
+		analysis.Emotion = "serious"
+	} else if containsAny(prompt, []string{"恐怖", "可怕", "黑暗", "scary", "dark", "horror"}) {
+		analysis.Emotion = "scary"
+	} else if containsAny(prompt, []string{"快乐", "开心", "欢乐", "happy", "joyful", "cheerful"}) {
+		analysis.Emotion = "happy"
+	} else if containsAny(prompt, []string{"神秘", "魔法", "奇幻", "mysterious", "magical", "mystical"}) {
+		analysis.Emotion = "mysterious"
+	}
+	
+	// Detect complexity based on prompt length and detail words
+	if len(prompt) > 50 || containsAny(prompt, []string{"详细", "复杂", "精致", "detailed", "complex", "intricate"}) {
+		analysis.Complexity = "complex"
+	} else if len(prompt) > 20 || containsAny(prompt, []string{"中等", "适中", "medium", "moderate"}) {
+		analysis.Complexity = "medium"
+	}
+	
+	return analysis
+}
+
+// containsAny checks if the text contains any of the given keywords
+func containsAny(text string, keywords []string) bool {
+	for _, keyword := range keywords {
+		if strings.Contains(text, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+// OptimizePromptWithAnalysis performs multi-layer prompt optimization based on analysis
+func OptimizePromptWithAnalysis(userPrompt string, theme ThemeType) string {
+	if theme == ThemeNone {
+		return userPrompt
+	}
+	
+	// Step 1: Analyze prompt
+	analysis := AnalyzePromptType(userPrompt)
+	
+	// Step 2: Get theme enhancement
+	themePrompt := GetThemePromptEnhancement(theme)
+	
+	// Step 3: Get quality enhancement based on complexity
+	qualityPrompt := QualityPrompts[analysis.Complexity]
+	
+	// Step 4: Get style enhancement based on type
+	stylePrompt := StylePrompts[analysis.Type]
+	
+	// Step 5: Get technical requirements
+	technicalPrompt := TechnicalPrompts[theme]
+	
+	// Step 6: Combine all prompts intelligently
+	var promptParts []string
+	
+	// Base prompt (user input)
+	promptParts = append(promptParts, userPrompt)
+	
+	// Theme prompt (most important for theme consistency)
+	if themePrompt != "" {
+		promptParts = append(promptParts, themePrompt)
+	}
+	
+	// Quality prompt
+	if qualityPrompt != "" {
+		promptParts = append(promptParts, qualityPrompt)
+	}
+	
+	// Style prompt (emotion and type specific)
+	if stylePrompt != "" {
+		promptParts = append(promptParts, stylePrompt)
+	}
+	
+	// Technical prompt
+	if technicalPrompt != "" {
+		promptParts = append(promptParts, technicalPrompt)
+	}
+	
+	return strings.Join(promptParts, "，")
+}
+
+// GetOptimizedPromptForSearch returns an optimized prompt specifically for search
+func GetOptimizedPromptForSearch(userPrompt string, theme ThemeType, searchType string) string {
+	if searchType == "semantic" {
+		// For semantic search, keep the prompt closer to original to maintain relevance
+		if theme == ThemeNone {
+			return userPrompt
+		}
+		// Light theme enhancement for semantic search
+		themePrompt := GetThemePromptEnhancement(theme)
+		return fmt.Sprintf("%s，%s", userPrompt, themePrompt)
+	} else if searchType == "theme" {
+		// For theme search, use full optimization to ensure style consistency
+		return OptimizePromptWithAnalysis(userPrompt, theme)
+	}
+	
+	return userPrompt
 }
