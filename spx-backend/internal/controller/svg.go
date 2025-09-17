@@ -173,7 +173,7 @@ func (ctrl *Controller) GenerateSVG(ctx context.Context, params *GenerateSVGPara
 			if vectorErr := ctrl.callVectorService(ctx, aiResourceID, kodoURL, svgBytes); vectorErr != nil {
 				logger.Printf("Failed to call vector service: %v", vectorErr)
 				// Don't fail the request, just log the error
-			}
+			} 
 		}
 	}
 

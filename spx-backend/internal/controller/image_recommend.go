@@ -61,7 +61,7 @@ func (p *ImageRecommendParams) GetProviderForTheme() svggen.Provider {
 
 // NewPromptAnalysisContext creates a new prompt analysis context with cached optimization results.
 // This performs AI analysis only once and caches all optimized prompt variations.
-func NewPromptAnalysisContext(ctx context.Context, originalPrompt string, theme ThemeType, copilotClient *copilot.Copilot) *PromptAnalysisContext {
+func NewPromptAnalysisContext(ctx context.Context, originalPrompt string, theme ThemeType, copilotClient *copilot.Copilot, searchOnly bool) *PromptAnalysisContext {
 	logger := log.GetReqLogger(ctx)
 	
 	analysisCtx := &PromptAnalysisContext{
@@ -69,17 +69,20 @@ func NewPromptAnalysisContext(ctx context.Context, originalPrompt string, theme 
 		Theme:          theme,
 	}
 	
-	// If no theme, use original prompt for all variations
-	if theme == ThemeNone {
+	// If no theme or SearchOnly mode, use original prompt for all variations and skip AI analysis
+	if theme == ThemeNone || searchOnly {
 		analysisCtx.OptimizedPrompt = originalPrompt
 		analysisCtx.SemanticPrompt = originalPrompt
 		analysisCtx.ThemePrompt = originalPrompt
-		// Analysis is not needed for ThemeNone, but initialize with defaults
+		// Analysis is not needed for ThemeNone or SearchOnly, but initialize with defaults
 		analysisCtx.Analysis = PromptAnalysis{
 			Type:       "default",
 			Emotion:    "neutral", 
 			Complexity: "simple",
 			Keywords:   extractKeywords(originalPrompt),
+		}
+		if searchOnly {
+			logger.Printf("SearchOnly mode: skipping AI analysis for theme %s", theme)
 		}
 		return analysisCtx
 	}
@@ -202,7 +205,7 @@ func (ctrl *Controller) RecommendImages(ctx context.Context, params *ImageRecomm
 
 	// OPTIMIZATION: Create prompt analysis context once at the beginning
 	// This performs AI analysis only once and caches all optimized prompt variations
-	promptCtx := NewPromptAnalysisContext(ctx, params.Text, params.Theme, ctrl.copilot)
+	promptCtx := NewPromptAnalysisContext(ctx, params.Text, params.Theme, ctrl.copilot, params.SearchOnly)
 
 	var foundResults []RecommendedImageResult
 	var err error
@@ -512,6 +515,7 @@ func (ctrl *Controller) processAlgorithmResults(algResults []AlgorithmImageResul
 	results := make([]RecommendedImageResult, 0, len(algResults))
 	logger := log.GetReqLogger(context.Background())
 	
+	
 	for _, algResult := range algResults {
 		var aiResource struct {
 			ID  int64  `json:"id"`
@@ -519,6 +523,7 @@ func (ctrl *Controller) processAlgorithmResults(algResults []AlgorithmImageResul
 		}
 		
 		err := ctrl.db.Table("aiResource").Select("id, url").Where("url = ? AND deleted_at IS NULL", algResult.ImagePath).First(&aiResource).Error
+		
 		if err == nil {
 			// Found matching resource in database
 			results = append(results, RecommendedImageResult{

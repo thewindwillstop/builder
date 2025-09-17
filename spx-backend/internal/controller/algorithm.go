@@ -125,6 +125,7 @@ type AlgorithmImageResult struct {
 func (s *AlgorithmService) SearchSimilarImages(ctx context.Context, text string, topK int) (*AlgorithmSearchResponse, error) {
 	logger := log.GetReqLogger(ctx)
 	
+	
 	// Prepare request payload
 	req := AlgorithmSearchRequest{
 		Text:      text,
